@@ -1,5 +1,5 @@
 const { drawScreen, layout, paper } = require('./js/poster')
-const { MIN_SEATS, createRound, joinSeat, updateRound } = require('./js/round')
+const { MIN_SEATS, createRound, sealDish, beginTurn, pickDish } = require('./js/round')
 const { createSound } = require('./js/sound')
 
 // 微信把第一个 createCanvas 返回的画布显示在屏幕上，后续画布均为离屏画布。
@@ -67,20 +67,9 @@ function frame() {
   const elapsed = lastFrame === null ? 0 : Math.max(0, (now - lastFrame) / 1000)
   lastFrame = now
   posterTime += elapsed
-  if (screen === 'play' && round.phase === 'draw') {
-    const escaped = round.escaped.length
-    updateRound(round, elapsed)
-    if (round.phase === 'result') {
-      screen = 'result'
-      navTouch = null
-      sound.play('payer')
-    } else if (round.escaped.length !== escaped) {
-      sound.play('escape')
-    }
-  }
   draw()
-  // 静态小票只画一次，下一次触摸或窗口变化时重新调度。
-  if (screen !== 'result') schedule()
+  // 只有首页的转盘会动。点菜由触摸推进，传手机时无需持续重绘。
+  if (screen === 'home') schedule()
 }
 
 function boxFor(touch) {
@@ -92,12 +81,15 @@ function boxFor(touch) {
     const i = boxes.counts.findIndex(inside)
     if (i !== -1) return { action: 'count', value: MIN_SEATS + i }
   }
-  if (screen === 'play' && round.phase === 'join') {
-    const i = boxes.seats.findIndex(inside)
-    if (i !== -1) return { action: 'seat', value: i }
+  if (screen === 'play') {
+    if (round.phase === 'pass' && inside(boxes.main)) return { action: 'begin' }
+    if (round.phase === 'setup' || round.phase === 'pick') {
+      const i = boxes.dishes.findIndex(inside)
+      if (i !== -1 && !round.picked[i]) return { action: 'dish', value: i }
+    }
   }
   if (screen !== 'play' && inside(boxes.main)) return { action: 'start' }
-  if ((screen === 'result' || (screen === 'play' && round.phase === 'join')) && inside(boxes.back)) {
+  if ((screen === 'result' || (screen === 'play' && round.phase === 'setup')) && inside(boxes.back)) {
     return { action: 'back' }
   }
   return null
@@ -108,27 +100,18 @@ function startRound() {
   screen = 'play'
   lastFrame = null
   sound.stop()
-  schedule()
 }
 
 wx.onTouchStart(event => {
   if (!visible) return
   const touches = event.changedTouches && event.changedTouches.length ? event.changedTouches : event.touches
-  // 同一事件可以送来多根手指。每根手指只认落点一次，拖过别人的碟子不会替其入座。
+  // 一桌共用一台手机，只接收一次完整的点按，避免两根手指同时替两位玩家点菜。
   for (const touch of Array.from(touches || [])) {
     const id = touch.identifier
     if (down.has(id)) continue
     down.add(id)
     const target = boxFor(touch)
-    if (!target) continue
-    if (target.action === 'seat') {
-      if (joinSeat(round, target.value)) {
-        sound.play('join')
-        if (round.phase === 'draw') lastFrame = null
-      }
-    } else if (!navTouch) {
-      navTouch = { id, target, screen, round }
-    }
+    if (target && !navTouch) navTouch = { id, target, screen, round, phase: round && round.phase }
   }
 })
 
@@ -143,25 +126,34 @@ function finishTouch(event, cancelled) {
     if (!navTouch || navTouch.id !== touch.identifier) continue
     const start = navTouch
     navTouch = null
-    if (cancelled || start.screen !== screen || start.round !== round) continue
+    if (cancelled || start.screen !== screen || start.round !== round || start.phase !== (round && round.phase)) continue
     const end = boxFor(touch)
     if (!end || end.action !== start.target.action || end.value !== start.target.value) continue
     if (end.action === 'count') count = end.value
     if (end.action === 'start') startRound()
+    if (end.action === 'begin') beginTurn(round)
+    if (end.action === 'dish') {
+      if (round.phase === 'setup') {
+        if (sealDish(round, end.value)) sound.play('seal')
+      } else if (pickDish(round, end.value)) {
+        if (round.phase === 'result') screen = 'result'
+        sound.play(screen === 'result' ? 'payer' : 'safe')
+      }
+    }
     if (end.action === 'back') {
       sound.stop()
       screen = 'home'
       round = null
       lastFrame = null
-      schedule()
     }
+    schedule()
   }
 }
 
 wx.onTouchEnd(event => finishTouch(event, false))
 wx.onTouchCancel(event => finishTouch(event, true))
 wx.onHide(() => {
-  // 微信切后台可能不派发 touchEnd。清除手势，保留已入座的人和已经抽好的顺序。
+  // 切后台可能不派发 touchEnd。保留封存的菜和当前轮次，只清除尚未完成的手势。
   visible = false
   navTouch = null
   down.clear()

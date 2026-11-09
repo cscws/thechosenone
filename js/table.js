@@ -107,6 +107,71 @@ function drawShrimp(ctx) {
   }
 }
 
+function drawPork(ctx) {
+  dish(ctx, '#A85D3E', 28)
+  oval(ctx, 0, 1, 21, 7.4, '#A55835', null)
+  // 五花肉用深色酱皮和浅色脂肪分层，与带骨的排骨从轮廓上区分。
+  for (const [x, y] of [[-9, -3], [7, -4], [0, 3]]) {
+    ctx.save()
+    ctx.translate(x, y)
+    shape(ctx, 'M-6 -4L1 -7L8 -4L7 3L0 6L-6 3Z', '#AA5236', ink, 1)
+    shape(ctx, 'M-6 -2L0 1L7 -2L7 0L0 3L-6 0Z', '#E7B480', null)
+    shape(ctx, 'M-6 -4L0 -1L8 -4L1 -7Z', '#CA6B41', ink, 0.8)
+    segment(ctx, -2, -4, 2, -5, '#ECC695', 1.3)
+    ctx.restore()
+  }
+}
+
+function drawDumplings(ctx) {
+  dish(ctx, porcelain)
+  for (const [x, y, tilt] of [[-10, -3, -0.32], [9, -3, 0.25], [0, 4, -0.04]]) {
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(tilt)
+    shape(ctx, 'M-9 1Q-5 -9 1 -7Q6 -6 9 1Q2 8 -9 1Z', '#EFCE91', ink, 1.1)
+    shape(ctx, 'M-8 1Q0 5 8 1Q4 7 -4 5Z', '#B47742', null)
+    shape(ctx, 'M-4 -4L-2 -1M0 -6L1 -2M4 -4L4 -2', null, '#A2754F', 0.8)
+    ctx.restore()
+  }
+}
+
+function drawRibs(ctx) {
+  dish(ctx, '#AC6049')
+  oval(ctx, 0, 1, 21, 7.4, '#A7593C', null)
+  for (const [x, y, tilt] of [[-10, -2, -0.48], [6, -4, 0.25], [3, 4, -0.28]]) {
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(tilt)
+    shape(ctx, 'M-9 -2Q-12 -5 -13 -1Q-13 2 -10 2L9 2Q12 4 13 1Q14 -3 10 -2Z', rice, ink, 0.9)
+    shape(ctx, 'M-7 -2Q-6 -6 -1 -5L5 -4Q8 -3 7 1Q5 5 1 5L-5 4Q-8 2 -7 -2Z', '#9B4530', ink, 1.1)
+    segment(ctx, -4, -3, 2, -3, '#E69357', 1.2)
+    ctx.restore()
+  }
+}
+
+function drawFriedRice(ctx) {
+  dish(ctx, porcelain)
+  shape(ctx, 'M-21 3Q-20 -3 -16 -4Q-16 -8 -10 -8Q-6 -13 -1 -11Q4 -14 9 -10Q15 -10 16 -6Q22 -4 21 2Q16 8 0 8Q-16 8 -21 3Z', '#E7BA68', ink, 1)
+  for (const [x, y] of [[-15, 0], [-10, -5], [-7, 3], [-2, -8], [0, -2], [5, 4], [9, -4], [15, 1]]) {
+    segment(ctx, x, y, x + 2.5, y - 1, rice, 1.7)
+  }
+  for (const [x, y] of [[-12, 3], [-5, -4], [4, -6], [11, 1]]) oval(ctx, x, y, 1.5, 1.5, '#62814D', null)
+  shape(ctx, 'M-1 2L2 1L3 3L0 4ZM8 -8L11 -7L10 -5L7 -6Z', vermilion, null)
+}
+
+function drawTomatoEgg(ctx) {
+  dish(ctx, '#B56C51')
+  shape(ctx, 'M-20 1Q-17 -5 -11 -4L-6 -2Q-3 -8 3 -6L6 -4Q13 -5 17 0Q19 5 12 5Q5 9 -2 5Q-9 9 -13 5Q-18 6 -20 1Z', '#E9BA54', ink, 1)
+  for (const [x, y, tilt] of [[-10, -3, -0.4], [9, -4, 0.18], [4, 4, -0.2]]) {
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(tilt)
+    shape(ctx, 'M-7 -2L7 -2Q5 6 0 5Q-5 5 -7 -2Z', '#D7664F', ink, 0.9)
+    shape(ctx, 'M-4 -1L-1 2M3 -1L1 2', null, '#F0B366', 1)
+    ctx.restore()
+  }
+}
+
 function drawCloth(ctx) {
   oval(ctx, 183, 246, 142, 24, '#D9C8AB', null)
   shape(ctx, 'M22 142Q180 44 338 142L341 193Q341 202 333 208Q327 230 312 224Q302 247 284 242Q269 261 250 253Q225 273 206 263Q182 274 160 265Q134 272 114 260Q90 265 72 247Q50 249 43 230Q24 229 23 210Q14 205 19 194Z', '#A84635', ink, 2.8)
@@ -215,6 +280,22 @@ function drawDodgingHand(ctx, side, time, angle) {
 }
 
 const recipes = [drawFish, drawBao, drawShrimp, drawGreens]
+const menuRecipes = [...recipes, drawPork, drawDumplings, drawRibs, drawFriedRice, drawTomatoEgg]
+
+function drawMenuDish(ctx, index, x, y, scale = 1) {
+  const draw = menuRecipes[index]
+  if (!draw) return
+  // 原来的四道菜在圆桌上各有尺寸；菜单里统一盘子宽度，让九个选择看起来同等醒目。
+  const radius = [36, 24, 23, 24][index] || 28
+  const factor = scale * 32 / radius
+  ctx.save()
+  ctx.translate(x, y - 1.5 * scale)
+  ctx.scale(factor, factor)
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  draw(ctx)
+  ctx.restore()
+}
 
 function steam(ctx, dish, time) {
   ctx.save()
@@ -262,4 +343,4 @@ function drawTable(ctx, x, y, width, scene) {
   ctx.restore()
 }
 
-module.exports = { drawTable }
+module.exports = { drawTable, drawMenuDish }

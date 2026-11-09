@@ -1,4 +1,5 @@
-const { drawTable } = require('./table')
+const { drawTable, drawMenuDish } = require('./table')
+const { DISHES } = require('./round')
 
 // 色彩来自酒楼老菜单。画面与触摸命中共用 360 单位宽的排版坐标。
 const ink = '#312c26'
@@ -91,17 +92,13 @@ function ornament(c, x, y, dir) {
   }
 }
 
-const seatInk = ['#ae392c', '#276550', '#86582b', '#375e86', '#8a4b64', '#5e6743']
-const excuses = ['突然要接个电话。', '说车还在路中间。', '说楼下有人找。', '去洗手间找上一位了。', '想起汤还炖在家里。', '说去帮服务员找零钱。']
-
-function layout(height, count = 4) {
-  // 上下保留标题、说明和返回区，奇数桌的最后一席居中；触摸直接使用这些碟子的外框。
-  const rowCount = Math.ceil(count / 2)
-  const step = Math.min(119, (height - 252) / rowCount)
-  const firstY = (144 + height - 101 - rowCount * step) / 2
-  const seats = Array.from({ length: count }, (_, i) => ({
-    x: count % 2 && i === count - 1 ? 109 : (i % 2 ? 188 : 30),
-    y: firstY + Math.floor(i / 2) * step, w: 142, h: step - 6
+function layout(height) {
+  // 定菜和正式点菜共用九宫格，换人后每一道菜仍在原来的位置。
+  const cellH = Math.min(132, (height - 244) / 3)
+  const firstY = (146 + height - 84 - (3 * cellH + 12)) / 2
+  const dishes = Array.from({ length: 9 }, (_, i) => ({
+    x: 18 + (i % 3) * 110, y: firstY + Math.floor(i / 3) * (cellH + 6),
+    w: 104, h: cellH
   }))
   const counts = Array.from({ length: 5 }, (_, i) => ({
     x: 23 + i * 64, y: height - 141, w: 58, h: 41
@@ -109,12 +106,12 @@ function layout(height, count = 4) {
   return {
     main: { x: 22, y: height - 82, w: 316, h: 50 },
     back: { x: 88, y: height - 30, w: 184, h: 30 },
-    tableY: 105 + (height - 600) * 0.49, counts, seats
+    tableY: 105 + (height - 600) * 0.49, counts, dishes
   }
 }
 
 function home(c, h, boxes, time, count) {
-  header(c, '同桌抽签')
+  header(c, '九道菜局')
   const d = (h - 600) * 0.18
   c.save()
   c.translate(180, 83 + d)
@@ -127,7 +124,7 @@ function home(c, h, boxes, time, count) {
   ornament(c, -130, 0, -1)
   ornament(c, 127, 0, 1)
   c.restore()
-  label(c, '都说去洗手间，总得留一个。', 180, 125 + d, 15, muted, 'center')
+  label(c, '九道菜里藏一张账单，点到的人请客。', 180, 125 + d, 15, muted, 'center')
   drawTable(c, 0, boxes.tableY, 360, { time, angle: 0.13 * Math.sin(time * 0.75) })
   line(c, 22, h - 173, 100, h - 173, '#b5a180')
   line(c, 260, h - 173, 338, h - 173, '#b5a180')
@@ -143,100 +140,71 @@ function home(c, h, boxes, time, count) {
     label(c, (i + 2) + '人', b.x + b.w / 2, b.y + b.h / 2, 16, current ? paper : ink, 'center', 'bold')
   })
   button(c, boxes.main, '开一桌')
-  label(c, '共用一部手机，每桌抽出一位买单人。', 180, h - 13, 12, muted, 'center')
+  label(c, '共用一部手机，先秘密定菜，再轮流点菜。', 180, h - 13, 12, muted, 'center')
 }
 
-// 指印只是按键反馈图案。席号负责识别玩家，颜色辅助区分同桌的各席。
-function fingerprint(c, x, y, size, color) {
+function menuCard(c, box, i, used) {
+  const { x, y, w, h } = box
+  const cx = x + w / 2
+  const cy = y + h / 2
+  rect(c, x + 2, y + 2, w, h, used ? '#d7ccb7' : '#c4ad86')
+  rect(c, x, y, w, h, used ? '#e6dfcb' : '#fff8e7')
+  c.strokeStyle = used ? '#bbae98' : '#9a8061'
+  c.lineWidth = 1
+  c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1)
   c.save()
-  c.translate(x, y)
-  c.scale(size, size)
-  c.rotate(-0.24)
-  c.strokeStyle = color
-  c.lineWidth = 1.6
-  c.lineCap = 'round'
-  c.beginPath()
-  c.moveTo(-10, 1)
-  c.bezierCurveTo(-10, -14, 12, -15, 12, 1)
-  c.bezierCurveTo(12, 7, 9, 11, 7, 13)
-  c.moveTo(-7, 6)
-  c.bezierCurveTo(-4, 2, -8, -8, 2, -8)
-  c.bezierCurveTo(12, -7, 9, 5, 5, 10)
-  c.moveTo(-4, 10)
-  c.bezierCurveTo(1, 4, -4, -4, 2, -4)
-  c.bezierCurveTo(8, -3, 4, 6, 2, 8)
-  c.moveTo(-1, 13)
-  c.bezierCurveTo(2, 10, 3, 7, 3, 4)
-  c.moveTo(0, 3)
-  c.lineTo(1, 0)
-  c.stroke()
+  if (used) c.globalAlpha = 0.40
+  drawMenuDish(c, i, cx, cy - 9, 1.08)
   c.restore()
-}
-
-function oval(c, x, y, rx, ry, fill, stroke, weight = 1) {
-  c.save()
-  c.translate(x, y)
-  c.scale(rx, ry)
-  c.beginPath()
-  c.arc(0, 0, 1, 0, Math.PI * 2)
-  c.restore()
-  if (fill) { c.fillStyle = fill; c.fill() }
-  if (stroke) { c.strokeStyle = stroke; c.lineWidth = weight; c.stroke() }
-}
-
-function drawSeat(c, box, i, round) {
-  const x = box.x + box.w / 2
-  const y = box.y + box.h / 2
-  const rx = box.w * 0.475
-  const ry = Math.min(47, box.h * 0.43)
-  const escaped = round.escaped.includes(i)
-  const active = round.phase === 'draw' && round.highlight === i && !escaped
-  const joined = round.joined[i]
-  const tone = escaped ? '#807865' : seatInk[i]
-  oval(c, x + 2, y + 4, rx, ry, '#cbb895')
-  oval(c, x, y, rx, ry, escaped ? '#e4dcc7' : '#fff8e8', active ? red : ink, active ? 3 : 1.4)
-  oval(c, x, y, rx - 4, ry - 4, null, active ? red : tone, active ? 2 : 1)
-  oval(c, x, y, rx - 10, ry - 8, null, '#c7bda4', 0.8)
-  if (escaped) {
-    label(c, (i + 1) + '号位', x, y - 9, 16, muted, 'center', 'bold')
-    line(c, x - 23, y - 7, x + 23, y - 11, muted, 1.3)
-    label(c, '免单', x, y + 13, 18, teal, 'center', 'bold', serif)
-  } else {
-    if (joined) fingerprint(c, x - 26, y - 7, 0.73, tone)
-    label(c, (i + 1) + '号位', x + (joined ? 11 : 0), y - 8, 18, tone, 'center', 'bold')
-    const status = round.phase === 'join' ? (joined ? '已入座' : '点一下入座') : (active ? '账单在这里' : '等开签')
-    label(c, status, x, y + 15, 12, active ? red : muted, 'center', active ? 'bold' : 'normal')
+  label(c, DISHES[i], cx, cy + 28, 15, used ? muted : ink, 'center', 'bold', serif)
+  if (used) {
+    rect(c, x + w - 38, y + 5, 33, 16, '#d4c8af')
+    label(c, '已点', x + w - 21, y + 13, 11, muted, 'center', 'bold')
   }
 }
 
-function playing(c, h, boxes, round) {
-  const joining = round.phase === 'join'
-  const total = round.count
-  const joined = round.joined.filter(Boolean).length
-  header(c, total + ' 人桌')
-  label(c, joining ? '各位请入座' : '账单传到谁手里？', 21, 77, joining ? 30 : 26, ink, 'left', 'bold', serif)
-  label(c, joining ? joined + ' / ' + total : '剩 ' + (total - round.escaped.length) + ' 席', 339, 77, 17, teal, 'right', 'bold')
-  label(c, joining ? '每人点一张空碟，记住自己的座号。' : '拿到免单签的先走，留到最后的人请客。', 22, 116, 15, muted)
-  dash(c, 21, 339, 140, '#b29c7e')
-  boxes.seats.forEach((box, i) => drawSeat(c, box, i, round))
-  const foot = h - 77
-  dash(c, 21, 339, foot - 22, '#b29c7e')
-  if (joining) {
-    label(c, '还差 ' + (total - joined) + ' 位，人齐就开签。', 180, foot, 16, teal, 'center', 'bold')
-    label(c, '返回选人数', 180, boxes.back.y + boxes.back.h / 2, 14, teal, 'center', 'bold')
-  } else {
-    const last = round.escaped[round.escaped.length - 1]
-    label(c, last === undefined ? '服务员拿着账单过来了……' : (last + 1) + ' 号位' + excuses[last], 180, foot, 16, teal, 'center', 'bold')
-  }
+function menu(c, h, boxes, round) {
+  const setup = round.phase === 'setup'
+  const left = round.picked.filter(picked => !picked).length
+  header(c, round.count + ' 人桌')
+  label(c, setup ? '秘密定菜' : (round.current + 1) + ' 号位点菜', 19, 77, 29, ink, 'left', 'bold', serif)
+  label(c, setup ? '店家设题' : '还剩 ' + left + ' 道', 339, 77, 15, teal, 'right', 'bold')
+  label(c, setup ? '请其他人移开目光。点一道菜作为买单菜。' :
+    '点一道还没点过的菜，点中买单菜就请客。', 19, 113, 14, muted)
+  dash(c, 18, 341, 138, '#b49d7b')
+  boxes.dishes.forEach((box, i) => menuCard(c, box, i, round.picked[i]))
+  dash(c, 18, 341, h - 70, '#b49d7b')
+  label(c, setup ? '选定后立即盖住菜单，按座次轮流点菜。' : '点菜就算落单，已经点过的菜不能再选。', 180, h - 48, 13, muted, 'center')
+  if (setup) label(c, '返回选人数', 180, boxes.back.y + boxes.back.h / 2, 14, teal, 'center', 'bold')
+}
+
+function handoff(c, h, boxes, round) {
+  header(c, round.count + ' 人桌')
+  const top = Math.round((h - 275) / 2) - 15
+  const left = 39
+  rect(c, left + 4, top + 4, 282, 238, '#c5b18e')
+  rect(c, left, top, 282, 238, teal)
+  c.strokeStyle = '#d9c996'
+  c.lineWidth = 1
+  c.strokeRect(left + 7, top + 7, 268, 224)
+  bowl(c, 164, top + 27, 32, '#f7ebc9')
+  label(c, '请交给', 180, top + 79, 17, '#f7ebc9', 'center')
+  label(c, (round.current + 1) + ' 号位', 180, top + 128, 43, paper, 'center', 'bold', serif)
+  line(c, 74, top + 163, 286, top + 163, '#b8b98e')
+  // 交接只展示已经公开的上一道菜；设题时选中的菜名只在最终小票揭晓。
+  const note = round.lastDish < 0 ? '买单菜已封存' : DISHES[round.lastDish] + '，躲过一单！'
+  label(c, note, 180, top + 197, 17, '#f7ebc9', 'center', 'bold')
+  label(c, '拿到手机再打开菜单。', 180, h - 113, 14, muted, 'center')
+  button(c, boxes.main, '我来点菜')
 }
 
 function receipt(c, h, boxes, round) {
-  header(c, '本桌已开签')
+  header(c, '本桌已结账')
   const top = 64 + (h - 600) * 0.40
   const left = 27
   const width = 306
   const bottom = top + 377
-  // 连续锯齿做成撕下的小票；结果只认已经锁定的席号，重绘不会产生新结果。
+  // 小票直接显示本次点中的菜和点菜人，重绘时始终使用同一笔结果。
   const points = [[left, top], [left + width, top], [left + width, bottom]]
   for (let i = 0; i < 17; i++) {
     points.push([left + width - i * 18 - 9, bottom - 7], [left + width - (i + 1) * 18, bottom])
@@ -246,23 +214,24 @@ function receipt(c, h, boxes, round) {
   bowl(c, 166, top + 19, 28, red)
   label(c, '买单小票', 180, top + 70, 30, ink, 'center', 'bold', serif)
   dash(c, 47, 313, top + 102, '#ac9675')
-  label(c, '本桌买单人', 180, top + 133, 14, muted, 'center')
-  const seat = round.payer + 1
-  fingerprint(c, 180, top + 174, 1.35, seatInk[round.payer])
-  label(c, seat + ' 号位', 180, top + 238, 48, red, 'center', 'bold', serif)
-  dash(c, 47, 313, top + 286, '#ac9675')
-  label(c, '其余 ' + (round.count - 1) + ' 位', 49, top + 321, 16, muted)
-  label(c, '均已免单', 311, top + 321, 18, teal, 'right', 'bold')
+  label(c, '本桌买单人', 180, top + 129, 14, muted, 'center')
+  label(c, (round.payer + 1) + ' 号位', 180, top + 181, 48, red, 'center', 'bold', serif)
+  dash(c, 47, 313, top + 222, '#ac9675')
+  drawMenuDish(c, round.lastDish, 180, top + 254, 1)
+  label(c, '买单菜', 49, top + 292, 15, muted)
+  label(c, DISHES[round.lastDish], 311, top + 292, 18, red, 'right', 'bold', serif)
+  label(c, '其余 ' + (round.count - 1) + ' 位', 49, top + 329, 15, muted)
+  label(c, '均已免单', 311, top + 329, 16, teal, 'right', 'bold')
   button(c, boxes.main, '再来一桌')
   label(c, '回到酒家', 180, boxes.back.y + boxes.back.h / 2, 14, teal, 'center', 'bold')
 }
 
 function drawScreen(c, height, screen, round, time, count = 4) {
-  const size = round ? round.count : count
-  const boxes = layout(height, size)
+  const boxes = layout(height)
   if (screen === 'home') home(c, height, boxes, time, count)
-  else if (screen === 'play') playing(c, height, boxes, round)
-  else receipt(c, height, boxes, round)
+  else if (screen === 'result') receipt(c, height, boxes, round)
+  else if (round.phase === 'pass') handoff(c, height, boxes, round)
+  else menu(c, height, boxes, round)
 }
 
 module.exports = { drawScreen, layout, paper }
